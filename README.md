@@ -35,8 +35,35 @@ Follow these steps in sequence to ensure that the data is processed correctly fo
 
 
 
-# Evalution
-#
-#
+## Evaluation
 
-#CUDA_VISIBLE_DEVICES=0,1,2,3 python needle_in_haystack.py  --s 1000 --e 32000 --n 32 --model_path /home/yuhao/EasyContext/output/500_step_token_version_6_32K_version_7/ck-250-version7
+After completing the data processing, the model can be evaluated using two distinct methods: NIAH and LongBench. Follow these instructions to carry out the evaluations:
+
+### NIAH Evaluation
+
+1. **Run the NIAH Script:**
+   Navigate to the NIAH directory and run the evaluation script. Replace `XX` with the appropriate CUDA device ID and `XXX` with your model's path:
+   ```
+   CUDA_VISIBLE_DEVICES=XX python needle_in_haystack.py --s 1000 --e 32000 --n 32 --model_path XXX
+  ```
+2. **Visualization:**
+   Visualize the results using the Jupyter notebook provided:
+     ```
+   CreateVizFromLLMTesting.ipynb
+  ```
+
+### LongBench Evaluation
+
+1. **Run the Prediction Script:**
+   Use the following command to run the prediction script with your model. Replace `xx` with your CUDA device ID and `xxxx` with your model's path:
+  ```
+   CUDA_VISIBLE_DEVICES=xx python pred.py --model xxxx --max_length 31500
+  ```
+
+2. **Evaluation and Record:**
+   Evaluate the results and save them as a CSV file using the provided Jupyter notebook:
+  ```
+   eval_record.ipynb
+  ```
+
+Follow these steps to ensure comprehensive evaluation of your model based on both performance and accuracy.
