@@ -38,3 +38,5 @@ Follow these steps in sequence to ensure that the data is processed correctly fo
 # Evalution
 #
 #
+
+#CUDA_VISIBLE_DEVICES=0,1,2,3 python needle_in_haystack.py  --s 1000 --e 32000 --n 32 --model_path /home/yuhao/EasyContext/output/500_step_token_version_6_32K_version_7/ck-250-version7
