@@ -45,12 +45,13 @@ After completing the data processing, the model can be evaluated using two disti
    Navigate to the NIAH directory and run the evaluation script. Replace `XX` with the appropriate CUDA device ID and `XXX` with your model's path:
    ```
    CUDA_VISIBLE_DEVICES=XX python needle_in_haystack.py --s 1000 --e 32000 --n 32 --model_path XXX
-  ```
+   ```
+
 2. **Visualization:**
    Visualize the results using the Jupyter notebook provided:
-     ```
+   ```
    CreateVizFromLLMTesting.ipynb
-  ```
+    ```
 
 ### LongBench Evaluation
 
