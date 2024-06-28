@@ -5,10 +5,16 @@ import random
 from hashlib import sha256
 from datasets import load_dataset
 from transformers import LlamaTokenizer
+
+import json
+import os
+import random
+from multiprocessing import Pool
+import argparse
 import pandas as pd
 # 设置文件路径
 file_path_1 = "tokenized_data_Orca_all.parquet"
-file_path_2 = "tokenized_data_SlimPajama_Top1M.parquet"
+file_path_2 = "tokenized_data_SlimPajama.parquet"
 # 加载数据集
 dataset_Orca = load_dataset('parquet', data_files=file_path_1)
 dataset_Slim = load_dataset('parquet', data_files=file_path_2)
@@ -17,6 +23,7 @@ dataset_Orca = dataset_Orca['train']
 dataset_Slim = dataset_Slim['train']
 dataset_Slim = dataset_Slim.shuffle()
 dataset_Orca = dataset_Orca.shuffle()
+
 
 
 def generate_unique_string():
@@ -49,15 +56,11 @@ def input_start(input,label,length,tokenizer):
     length = length + len(add_list)
     return  input, label, length 
 
-
-def add_ctxs_to_item(items,data_index_slimpajama,data_index_Orca,length):
+def add_ctxs_to_item(items,data_index_slimpajama,data_index_Orca,length,orca_length):
     """ Adds 'ctxs' key to a group of items and updates GPT_answer """
     ctxs = []
-
     questions_ctxs =[]
-  
     total_length = 0
-    Slim_length = []
     Orca_Q_length = []
     Orca_A_length = []
     Squad_Q_length = []
@@ -70,7 +73,7 @@ def add_ctxs_to_item(items,data_index_slimpajama,data_index_Orca,length):
     # Process each item to create questions, answers, and modify GPT_answer
     for idx, item in enumerate(items):
         # mid
-        if idx < 10:
+        if idx < 5:
             context_id = generate_unique_string()
             question_id = generate_unique_string()
             c_id = token(f"\nID: {context_id}, ",tokenizer)
@@ -88,11 +91,11 @@ def add_ctxs_to_item(items,data_index_slimpajama,data_index_Orca,length):
             Squad_Q_length += [len(text)]
             Squad_A_length += [len(GPT_answer)]
         #end 
-        elif idx < 20:
+        elif idx < 10:
             context_id = generate_unique_string()
             question_id = generate_unique_string()
             c_id = token(f"\nID: {context_id}, ",tokenizer)
-            q_id = token(f"\nQuestion {idx-9}: {item['question']}\n Retrieval: The answer to question {idx-9} can be found in ID {context_id}.", tokenizer)
+            q_id = token(f"\nQuestion {idx-5}: {item['question']}\n Retrieval: The answer to question {idx-5} can be found in ID {context_id}.", tokenizer)
             text = token(item['context']+f" ### Question: "+item['question'],tokenizer)
             GPT_answer = token(item['GPT_answer'],tokenizer)
             ctxs.append({
@@ -116,18 +119,18 @@ def add_ctxs_to_item(items,data_index_slimpajama,data_index_Orca,length):
             total_length += len(c_id+text)
             Squad_Q_length += [len(text)]
 
-    data_index_Orca,total_length= add_contexts_Orca(dataset_Orca,ctxs,data_index_Orca,total_length,tokenizer,Orca_Q_length,Orca_A_length)
+    data_index_Orca,total_length= add_contexts_Orca(dataset_Orca,ctxs,data_index_Orca,total_length,tokenizer,Orca_Q_length,Orca_A_length,orca_length)
 
 
     ## context end:
     Instruction = token(f"\n Provide a detailed analysis based on the Context and offer your answers. Question: ",tokenizer)
     total_length += len(Instruction)    
 
-    data_index_slimpajama,total_length= add_contexts(dataset_Slim, ctxs, data_index_slimpajama,total_length,length,tokenizer)
+    data_index_slimpajama,total_length= add_contexts_slim(dataset_Slim, ctxs, data_index_slimpajama,total_length,length,tokenizer)
 
 
     random.shuffle(ctxs)
-
+    # Reconstruct the mapping of question IDs to answer IDs after shuffling
  
     for i, ctx in enumerate(ctxs):
         if ctx.get('type') == 'question':
@@ -135,22 +138,18 @@ def add_ctxs_to_item(items,data_index_slimpajama,data_index_Orca,length):
                 "ID": ctx['Q_ID'],
                 "text": ctx['GPT_answer'],
                 "type": 'Answer',
-                "location" : i
+                "location" : i+1
             })
-       
 
     offset = 0
-    questions_ctxs.reverse()
-    flag = 0
+    random.shuffle(questions_ctxs)
     for new_ctx in questions_ctxs:
-        start_position = new_ctx['location'] 
-        if flag == 0:
-            insert_position = random.randint(start_position+1, len(ctxs))
-            flag = start_position+1
+        start_position = new_ctx['location'] + offset
+        # 检查起始位置是否超出列表长度，如果超出，则设置插入位置为列表末尾
+        if start_position >= len(ctxs):
+            insert_position = len(ctxs)
         else:
-            insert_position = random.randint(start_position+1, random.randint(flag,len(ctxs)))
-            flag = start_position+1
-        
+            insert_position = random.randint(start_position, len(ctxs))
         ctxs.insert(insert_position, new_ctx)
         offset += 1  
 
@@ -165,7 +164,10 @@ def add_ctxs_to_item(items,data_index_slimpajama,data_index_Orca,length):
             input_ids += item['ID']
             labels += [-100] * len(item['ID'])
     
-
+    # print("=="*100)
+    # print('input len:',len(input_ids))
+    # print('labels len:',len(labels))
+    # print('length: ',total_length)
 
     input_ids += Instruction 
     labels += [-100] * len(Instruction)
@@ -176,11 +178,14 @@ def add_ctxs_to_item(items,data_index_slimpajama,data_index_Orca,length):
             input_ids += item['Q_ID']
             labels += item['Q_ID']
 
-
+    # print("=="*100)
+    # print('input len:',len(input_ids))
+    # print('labels len:',len(labels))
+    # print('length: ',total_length)
     return {'input_ids':input_ids,'labels':labels}, {'Orca_Q':Orca_Q_length,'Orca_A':Orca_A_length,'Squad_Q': Squad_Q_length,'Squad_A':Squad_A_length},data_index_slimpajama,data_index_Orca
 
 
-def add_contexts(dataset, ctxs, data_index,total_length,length,tokenizer):
+def add_contexts_slim(dataset, ctxs, data_index,total_length,length,tokenizer):
     """ Adds contexts from the dataset while checking the token conditions """
     total_tokens = total_length
     max_tokens= length
@@ -195,12 +200,12 @@ def add_contexts(dataset, ctxs, data_index,total_length,length,tokenizer):
         else:
             all = c_id + text
             ctxs.append({"ID": all[:max_tokens-total_tokens], "type": False})
-            total_tokens = 32768
+            total_tokens = length
           # Update the token count assuming 1 token per word
     return data_index,total_tokens
 
 
-def add_contexts_Orca(dataset, ctxs, data_index,total_length,tokenizer,Orca_Q_length,Orca_A_length
+def add_contexts_Orca(dataset, ctxs, data_index,total_length,tokenizer,Orca_Q_length,Orca_A_length,orca_length
     ):
     """ Adds contexts from the dataset while checking the token conditions """
 
@@ -229,16 +234,12 @@ def add_contexts_Orca(dataset, ctxs, data_index,total_length,tokenizer,Orca_Q_le
         Orca_Q_length += [len(text)]
         Orca_A_length += [len(response)]
 
-        if total_tokens > 16400:
+        if total_tokens > orca_length:
             # print(num_QA)
             break
     return data_index,total_tokens
 
 
-import json
-import os
-import random
-from multiprocessing import Pool
 
 def load_json_data(filepath):
     """ Loads JSON data from a file """
@@ -251,17 +252,18 @@ def load_json_data(filepath):
         return []
     
 
-def expand_and_enhance_data(data,data_index_slimpajama,data_index_Orca,length):
+def expand_and_enhance_data(data,data_index_slimpajama,data_index_Orca,length,orca_length,data_number):
     """ Expands each item by 32 times and enhances with ctxs """
     enhanced_data = []
     length_distri = []
-    for item in data:
-        for _ in range(4):  # Duplicate each item 32 times
-            # Select 8 other random items
-            other_items = random.sample(data, 20)
+    while len(enhanced_data) < data_number:
+        for item in data:
+            if len(enhanced_data) >= data_number:
+                break
+            other_items = random.sample(data, 11)
             other_items.insert(0, item)  # Include the current item as the first item
-            new_item = item.copy()  # Make a copy of the item
-            end_data, length_distribution, data_index_slimpajama, data_index_Orca = add_ctxs_to_item(other_items,data_index_slimpajama,data_index_Orca,length)
+            end_data, length_distribution, data_index_slimpajama, data_index_Orca = add_ctxs_to_item(
+                other_items,data_index_slimpajama,data_index_Orca,length,orca_length)
             enhanced_data.append(end_data)
             length_distri.append(length_distribution)
     random.shuffle(enhanced_data)  # Shuffle all items to mix them up
@@ -283,22 +285,36 @@ def save_data_2(data, output_file):
     
 
 
-# Main logic
-merged_file_path = 'merged_data.json'
-output_file = 'token_version_6_32K_version_7_16K.parquet'
-output_file_2 = 'distribution.parquet'
-merged_data = load_json_data(merged_file_path)
-merged_data = merged_data[20:4020]
+def process_and_save_data(length,orca_length,data_number):
+    merged_file_path = 'Squad_COT_data.json'
+    output_file = 'F2F_data.parquet'
+    output_file_2 = 'distribution.parquet'
+    merged_data = load_json_data(merged_file_path)
+    merged_data = merged_data[20:4020]
+    if merged_data:
+        data_index_slimpajama = 0
+        data_index_Orca =0 
+        enhanced_data,length_distri,data_index_slimpajama,data_index_Orca= expand_and_enhance_data(
+         merged_data,data_index_slimpajama,data_index_Orca,length,orca_length,data_number)
+        print(data_index_slimpajama,data_index_Orca)
+        save_data_1(enhanced_data, output_file)
+        save_data_2(length_distri, output_file_2)
+    else:
+        print("Failed to load data or context data.")
 
-if merged_data:
-    data_index_slimpajama = 0
-    data_index_Orca =0 
-    
-    # 16 K
-    length = 32768
-    enhanced_data,length_distri,data_index_slimpajama,data_index_Orca= expand_and_enhance_data(merged_data,data_index_slimpajama,data_index_Orca,length)
-    print(data_index_slimpajama,data_index_Orca)
-    save_data_1(enhanced_data, output_file)
-    save_data_2(length_distri, output_file_2)
-else:
-    print("Failed to load data or context data.")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Process and save data.")
+    parser.add_argument('--length', type=int, default=32768, help='Total length for data expansion and enhancement.')
+    parser.add_argument('--orca_length', type=int, default=16400, help='Length parameter specific to Orca data.')
+    parser.add_argument('--data_number', type=int, default=16000, help='The number of data entries to process. ')
+
+    args = parser.parse_args()
+
+    process_and_save_data(
+        args.length,
+        args.orca_length,
+        args.data_number
+    )
+    # process_and_save_data(32768,16400,20)
