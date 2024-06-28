@@ -256,6 +256,7 @@ def expand_and_enhance_data(data,data_index_slimpajama,data_index_Orca,length,or
     """ Expands each item by 32 times and enhances with ctxs """
     enhanced_data = []
     length_distri = []
+
     while len(enhanced_data) < data_number:
         for item in data:
             if len(enhanced_data) >= data_number:
@@ -266,6 +267,8 @@ def expand_and_enhance_data(data,data_index_slimpajama,data_index_Orca,length,or
                 other_items,data_index_slimpajama,data_index_Orca,length,orca_length)
             enhanced_data.append(end_data)
             length_distri.append(length_distribution)
+            if data_index_Orca + 100 > len(dataset_Orca):
+                data_index_Orca = 0
     random.shuffle(enhanced_data)  # Shuffle all items to mix them up
     return enhanced_data,length_distri,data_index_slimpajama,data_index_Orca
 
