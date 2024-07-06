@@ -269,6 +269,7 @@ def expand_and_enhance_data(data,data_index_slimpajama,data_index_Orca,length,or
             length_distri.append(length_distribution)
             if data_index_Orca + 100 > len(dataset_Orca):
                 data_index_Orca = 0
+        # print('data_index_Orca: ',data_index_Orca)
     random.shuffle(enhanced_data)  # Shuffle all items to mix them up
     return enhanced_data,length_distri,data_index_slimpajama,data_index_Orca
 
