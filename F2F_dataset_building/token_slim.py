@@ -48,4 +48,4 @@ def main(data_row):
 
 if __name__ == "__main__":
     # data_number = 5000
-    main(1000000)
+    main(500000)
