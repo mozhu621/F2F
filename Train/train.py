@@ -116,7 +116,7 @@ def main(args):
     completed_steps = 0
 
     model.train()
-    args.seq_length =32767
+    #args.seq_length =32767
     loss_func = CrossEntropyLoss(inplace_backward=True)
     for step, batch in enumerate(train_loader):
         input_ids = batch["input_ids"][..., : args.seq_length+1][..., :-1]

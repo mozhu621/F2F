@@ -8,11 +8,11 @@ train.py \
 --gradient-accumulate-every 4 \
 --output-dir ./output/llama2-7b \
 --wandb Tinyllama_longcontext \
---max-train-steps 3 \
+--max-train-steps 500 \
 --learning-rate 2e-5 \
 --dataset /home/yuhao/From-Fragment-to-Fabric-Long-Context-Scaling-with-Short-Instruction-Tuning-Data/F2F_dataset_building/F2F_data.parquet \
 --model meta-llama/Llama-2-7b-hf \
---save-interval 2 \
+--save-interval 50 \
 --seq-length 32768 \
 --rope-theta 1000000 \
 --parallel_mode data_parallel
